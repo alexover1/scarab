@@ -4,20 +4,20 @@ from scarab import Parser
 from scarab.compiler import Compiler, Op
 
 
-def test_compile_int():
+def test_int():
     compiler = Compiler(Parser("123"))
     compiler.compile()
     assert compiler.code == bytearray([Op.LOAD_CONST, 123])
 
 
-def test_compile_string():
+def test_string():
     compiler = Compiler(Parser('"Hello, World"'))
     compiler.compile()
     assert compiler.code == bytearray([Op.LOAD_STRING, 0])
     assert compiler.strings[0] == "Hello, World"
 
 
-def test_compile_expression():
+def test_expression():
     compiler = Compiler(Parser("1 + 2 * 3"))
     compiler.compile()
     assert compiler.code == bytearray([
@@ -35,7 +35,7 @@ def test_compile_expression():
     "2 * 3 + 1",
     "1 + (2 * 3 + 4)",
 ])
-def test_compile_expressions(test_input):
+def test_compiles(test_input):
     compiler = Compiler(Parser(test_input))
     compiler.compile()
 
@@ -45,6 +45,6 @@ def test_compile_expressions(test_input):
     "* 3",
     "50 + -",
 ])
-def test_compile_syntax_error(test_input):
+def test_syntax_error(test_input):
     with pytest.raises(SyntaxError):
         iter(Compiler(Parser(test_input)))

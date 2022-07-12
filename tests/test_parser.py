@@ -3,22 +3,22 @@ import pytest
 from scarab.parser import Parser, TInt, TStr, TSym, TError
 
 
-def test_parse_int():
+def test_int():
     parser = Parser("543")
     assert isinstance(next(parser), TInt)
 
 
-def test_parse_string():
+def test_string():
     parser = Parser('"Hello, World"')
     assert isinstance(next(parser), TStr)
 
 
-def test_parse_symbol():
+def test_symbol():
     parser = Parser("*")
     assert isinstance(next(parser), TSym)
 
 
-def test_parse_expression():
+def test_expression():
     tokens = list(iter(Parser("1 + 2 * 3")))
     assert len(tokens) == 5
 
