@@ -1,0 +1,19 @@
+# Editors
+.vscode/
+.idea/
+
+**/__pycache__/
+.pytest_cache/
+
+# Distribution / packaging
+.Python
+build/
+dist/
+lib/
+lib64/
+
+# Environment
+.env
+.venv
+env/
+venv/
