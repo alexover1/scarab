@@ -1,6 +1,6 @@
-from compiler import Compiler, Op
-from parser import Parser
-from value import Int, String
+from scarab.compiler import Compiler, Op
+from scarab.parser import Parser
+from scarab.value import Int, String
 
 
 def run(com: Compiler):

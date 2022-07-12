@@ -94,3 +94,6 @@ class Parser:
                 return TInt(d, self.line, int(d))
             case default:
                 return TError(default, self.line)
+
+    def __iter__(self):
+        return self

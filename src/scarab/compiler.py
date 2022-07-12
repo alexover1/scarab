@@ -1,7 +1,7 @@
 from enum import IntEnum, auto
 from typing import TypeVar, Type
 
-from parser import Token, TInt, TSym, TStr, TError
+from .parser import Token, TInt, TSym, TStr, TError
 
 
 class Op(IntEnum):
