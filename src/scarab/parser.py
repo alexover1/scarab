@@ -67,9 +67,12 @@ class Parser:
         return next(self.iter)
 
     def peek(self):
-        item = self.next()
-        self.peeked.append(item)
-        return item
+        try:
+            item = self.next()
+            self.peeked.append(item)
+            return item
+        except StopIteration:
+            return '\0'
 
     def __next__(self) -> Token:
         self.whitespace()
@@ -82,6 +85,10 @@ class Parser:
                 while self.peek().isalnum():
                     ident += self.next()
                 return TIdent(ident, self.line, ident)
+            case d if d.isdigit():
+                while self.peek().isdigit():
+                    d += self.next()
+                return TInt(d, self.line, int(d))
             case s if s == '"':
                 string = ''
                 while self.peek() != '"':
@@ -90,8 +97,6 @@ class Parser:
                         return TError("Unclosed string literal", self.line)
                     string += item
                 return TStr(string, self.line, string)
-            case d if d.isdigit():
-                return TInt(d, self.line, int(d))
             case default:
                 return TError(default, self.line)
 

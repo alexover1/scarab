@@ -31,10 +31,11 @@ def run(com: Compiler):
                 stack.append(a // b)
             case _:
                 print(Op(op))
-    print(stack.pop())
+    if len(stack) > 0:
+        print(stack.pop())
 
 
 if __name__ == '__main__':
-    parser = Parser('"Hello, World"')
+    parser = Parser('1 + 2')
     compiler = Compiler(parser)
     run(compiler)

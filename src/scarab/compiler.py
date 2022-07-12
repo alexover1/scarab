@@ -1,7 +1,7 @@
 from enum import IntEnum, auto
 from typing import TypeVar, Type
 
-from .parser import Token, TInt, TSym, TStr, TError
+from .parser import Token, TInt, TStr, TSym, TError
 
 
 class Op(IntEnum):
@@ -75,8 +75,10 @@ T = TypeVar('T')
 
 
 class Compiler:
-    def __init__(self, tokens):
-        self.tokens = tokens
+    """Takes in an iterable of tokens, """
+
+    def __init__(self, parser):
+        self.parser = iter(parser)
         self.previous = None
         self.current = None
         self.exhausted = False
@@ -85,11 +87,13 @@ class Compiler:
 
     def advance(self):
         self.previous = self.current
-        item = next(self.tokens, None)
-        if item is None or isinstance(item, TError):
+
+        self.current = next(self.parser, None)
+        if isinstance(self.current, TError):
             self.exhausted = True
-            item = None
-        self.current = item
+            raise SyntaxError(self.current)
+        if self.current is None:
+            self.exhausted = True
 
     def consume(self, t: Type[T], value):
         if isinstance(self.current, t) and self.current.value == value:
@@ -120,7 +124,7 @@ class Compiler:
                 self.consume(TSym, ")")
             case TSym(op):
                 self.parse_precedence(Precedence.UNARY)
-                match op.value:
+                match op:
                     case "!":
                         self.code.append(Op.NOT)
                     case other:
