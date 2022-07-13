@@ -12,14 +12,15 @@ def test_int():
 def test_string():
     hello = String("hello")
     world = String("world")
-    assert (hello + world).value == "helloworld"
+    helloworld = hello + world
+    assert helloworld.value == "helloworld"
 
 
 @pytest.mark.parametrize("test_input", [
     Bool(False),
     Int(0),
     String(""),
-    Nil,
+    Nil(),
     not Bool(True),
 ])
 def test_false(test_input):

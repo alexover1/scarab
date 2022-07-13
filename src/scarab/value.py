@@ -46,9 +46,14 @@ def binary_ops(cls=None, /, *, add=False, sub=False, mul=False, div=False):
     return wrap(cls)
 
 
-@dataclass(frozen=True, order=True)
+@dataclass(frozen=True)
+class Object:
+    pass
+
+
+@dataclass(frozen=True, order=True, unsafe_hash=True)
 @binary_ops(add=True, sub=True, mul=True, div=True)
-class String:
+class String(Object):
     value: str
 
     def __str__(self):
@@ -60,7 +65,7 @@ class String:
 
 @dataclass(frozen=True, order=True)
 @binary_ops(add=True, sub=True, mul=True, div=True)
-class Int:
+class Int(Object):
     value: int
 
     def __str__(self):
@@ -71,7 +76,7 @@ class Int:
 
 
 @dataclass(frozen=True, order=True)
-class Bool:
+class Bool(Object):
     value: bool
 
     def __str__(self):
@@ -82,7 +87,7 @@ class Bool:
 
 
 @dataclass(frozen=True, order=True)
-class NoneObject:
+class Nil(Object):
     def __add__(self, other):
         return self
 
@@ -97,6 +102,3 @@ class NoneObject:
 
     def __bool__(self):
         return False
-
-
-Nil = NoneObject()

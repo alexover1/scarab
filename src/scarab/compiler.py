@@ -1,14 +1,16 @@
 from enum import IntEnum, auto
 from typing import TypeVar, Type
 
-from .parser import Token, TInt, TStr, TSym, TError, TKeyword, Keyword
+from .parser import Token, TInt, TStr, TError, TKeyword, Keyword, TIdent, TOp, TSym
+from .value import Int, String
 
 
 class Op(IntEnum):
-    LOAD_CONST = auto()
-    LOAD_STRING = auto()
+    CONSTANT = auto()
     TRUE = auto()
     FALSE = auto()
+    PRINT = auto()
+    POP = auto()
     ADD = auto()
     SUB = auto()
     MUL = auto()
@@ -20,8 +22,8 @@ class Op(IntEnum):
     GREATER = auto()
     LESS_EQUAL = auto()
     GREATER_EQUAL = auto()
-    PRINT = auto()
-    POP = auto()
+    SET_GLOBAL = auto()
+    GET_GLOBAL = auto()
 
 
 BUILTIN_SYMBOLS = {
@@ -67,7 +69,7 @@ class Precedence(IntEnum):
                 return cls.NONE
             case TStr():
                 return cls.NONE
-            case TSym(value=op):
+            case TOp(value=op):
                 return cls.get_op(op)
             case _:
                 return cls.NONE
@@ -85,7 +87,7 @@ class Compiler:
         self.current = None
         self.exhausted = False
         self.code = bytearray()
-        self.strings: list[str] = []
+        self.constants = list()
 
     def advance(self):
         self.previous = self.current
@@ -93,7 +95,7 @@ class Compiler:
         self.current = next(self.parser, None)
         if isinstance(self.current, TError):
             self.exhausted = True
-            raise SyntaxError(self.current)
+            raise SyntaxError(self.current.text)
         if self.current is None:
             self.exhausted = True
 
@@ -103,11 +105,23 @@ class Compiler:
             return
         raise SyntaxError
 
-    def match(self, t: Type[T], value):
-        if not isinstance(self.current, t) or self.current.value != value:
+    def check(self, t: Type[T], value):
+        return isinstance(self.current, t) and self.current.value == value
+
+    def match(self, t: Type[T], value=None):
+        if not isinstance(self.current, t):
             return False
+
+        if value is not None and self.current.value != value:
+            return False
+
         self.advance()
         return True
+
+    def make_constant(self, constant):
+        index = len(self.constants)
+        self.constants.append(constant)
+        return index
 
     def binary(self, op):
         self.parse_precedence(Precedence.get_op(op) + 1)
@@ -121,16 +135,24 @@ class Compiler:
 
         match self.previous:
             case TInt(x):
-                self.code.append(Op.LOAD_CONST)
-                self.code.append(x)
+                constant = self.make_constant(Int(x))
+                self.code.append(Op.CONSTANT)
+                self.code.append(constant)
             case TStr(s):
-                self.code.append(Op.LOAD_STRING)
-                self.code.append(len(self.strings))
-                self.strings.append(s)
+                constant = self.make_constant(String(s))
+                self.code.append(Op.CONSTANT)
+                self.code.append(constant)
+            case TIdent(name):
+                if self.match(TSym, ":"):
+                    raise NotImplementedError("function calls")
+                else:
+                    constant = self.make_constant(String(name))
+                    self.code.append(Op.GET_GLOBAL)
+                    self.code.append(constant)
             case TSym("("):
                 self.expression()
                 self.consume(TSym, ")")
-            case TSym(op):
+            case TOp(op):
                 self.parse_precedence(Precedence.UNARY)
                 match op:
                     case "!":
@@ -141,7 +163,7 @@ class Compiler:
         while precedence <= Precedence.get(self.current):
             self.advance()
             match self.previous:
-                case TSym(value=op):
+                case TOp(value=op):
                     self.binary(op)
                 case default:
                     raise SyntaxError(default)
@@ -157,11 +179,35 @@ class Compiler:
         self.expression()
         self.code.append(Op.POP)
 
+    def call_arguments(self):
+        arity = 0
+        while self.match(TSym, ","):
+            self.expression()
+            arity += 1
+        return arity
+
     def statement(self):
         if self.match(TKeyword, Keyword.PRINT):
             self.print_statement()
+            return False
+        elif self.match(TIdent):
+            name = self.previous.value
+            if self.match(TOp, "="):
+                self.expression()
+                constant = self.make_constant(String(name))
+                self.code.append(Op.SET_GLOBAL)
+                self.code.append(constant)
+            elif self.match(TIdent):
+                raise NotImplementedError("function definitions")
+                # self.expression()
+                # arity = self.call_arguments() + 1
+                # self.code.append(Op.CALL)
+            else:
+                raise SyntaxError("expect `=` or arguments after identifier")
+            return False
         else:
             self.expression_statement()
+            return True
 
     def declaration(self):
         self.statement()
@@ -171,15 +217,6 @@ class Compiler:
             self.advance()
             while not self.exhausted:
                 self.declaration()
-
-    def write(self, file_name: str):
-        if not self.exhausted:
-            raise Exception("You must call iter() or compile() before trying to save the output")
-
-        with open(file_name, "wb") as f:
-            for string in self.strings:
-                f.write((string + '\0').encode("utf-8"))
-            f.write(self.code)
 
     def __iter__(self):
         self.compile()

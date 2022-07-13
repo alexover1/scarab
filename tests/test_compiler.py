@@ -7,25 +7,27 @@ from scarab.compiler import Compiler, Op
 def test_int():
     compiler = Compiler(Parser("123"))
     compiler.compile()
-    assert compiler.code == bytearray([Op.LOAD_CONST, 123])
+    assert compiler.code == bytearray([Op.CONSTANT, 0, Op.POP])
+    assert compiler.constants[0].value == 123
 
 
 def test_string():
     compiler = Compiler(Parser('"Hello, World"'))
     compiler.compile()
-    assert compiler.code == bytearray([Op.LOAD_STRING, 0])
-    assert compiler.strings[0] == "Hello, World"
+    assert compiler.code == bytearray([Op.CONSTANT, 0, Op.POP])
+    assert compiler.constants[0].value == "Hello, World"
 
 
 def test_expression():
     compiler = Compiler(Parser("1 + 2 * 3"))
     compiler.compile()
     assert compiler.code == bytearray([
-        Op.LOAD_CONST, 1,
-        Op.LOAD_CONST, 2,
-        Op.LOAD_CONST, 3,
+        Op.CONSTANT, 0,
+        Op.CONSTANT, 1,
+        Op.CONSTANT, 2,
         Op.MUL,
-        Op.ADD
+        Op.ADD,
+        Op.POP
     ])
 
 
