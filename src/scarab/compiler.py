@@ -1,7 +1,7 @@
 from enum import IntEnum, auto
 from typing import TypeVar, Type
 
-from .parser import Token, TInt, TStr, TSym, TError
+from .parser import Token, TInt, TStr, TSym, TError, TKeyword, Keyword
 
 
 class Op(IntEnum):
@@ -20,6 +20,8 @@ class Op(IntEnum):
     GREATER = auto()
     LESS_EQUAL = auto()
     GREATER_EQUAL = auto()
+    PRINT = auto()
+    POP = auto()
 
 
 BUILTIN_SYMBOLS = {
@@ -101,6 +103,12 @@ class Compiler:
             return
         raise SyntaxError
 
+    def match(self, t: Type[T], value):
+        if not isinstance(self.current, t) or self.current.value != value:
+            return False
+        self.advance()
+        return True
+
     def binary(self, op):
         self.parse_precedence(Precedence.get_op(op) + 1)
         if op in BUILTIN_SYMBOLS:
@@ -141,10 +149,28 @@ class Compiler:
     def expression(self):
         self.parse_precedence(Precedence.ASSIGNMENT)
 
+    def print_statement(self):
+        self.expression()
+        self.code.append(Op.PRINT)
+
+    def expression_statement(self):
+        self.expression()
+        self.code.append(Op.POP)
+
+    def statement(self):
+        if self.match(TKeyword, Keyword.PRINT):
+            self.print_statement()
+        else:
+            self.expression_statement()
+
+    def declaration(self):
+        self.statement()
+
     def compile(self):
         if not self.exhausted:
             self.advance()
-            self.expression()
+            while not self.exhausted:
+                self.declaration()
 
     def write(self, file_name: str):
         if not self.exhausted:

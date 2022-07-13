@@ -51,6 +51,9 @@ def binary_ops(cls=None, /, *, add=False, sub=False, mul=False, div=False):
 class String:
     value: str
 
+    def __str__(self):
+        return self.value
+
     def __bool__(self):
         return len(self.value) > 0
 
@@ -60,6 +63,9 @@ class String:
 class Int:
     value: int
 
+    def __str__(self):
+        return str(self.value)
+
     def __bool__(self):
         return self.value != 0
 
@@ -67,6 +73,9 @@ class Int:
 @dataclass(frozen=True, order=True)
 class Bool:
     value: bool
+
+    def __str__(self):
+        return "true" if self.value else "false"
 
     def __bool__(self):
         return self.value

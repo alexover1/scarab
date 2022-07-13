@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from enum import Enum
 
 
 @dataclass(frozen=True)
@@ -35,6 +36,16 @@ class TSym(Token):
 @dataclass(frozen=True)
 class TError(Token):
     pass
+
+
+class Keyword(Enum):
+    PRINT = 'print'
+
+
+@dataclass(frozen=True)
+class TKeyword(Token):
+    __match_args__ = ('value',)
+    value: Keyword
 
 
 class Parser:
@@ -84,6 +95,9 @@ class Parser:
             case ident if ident.isalpha():
                 while self.peek().isalnum():
                     ident += self.next()
+                key = ident.upper()
+                if key in Keyword.__dict__:
+                    return TKeyword(ident, self.line, Keyword(ident))
                 return TIdent(ident, self.line, ident)
             case d if d.isdigit():
                 while self.peek().isdigit():

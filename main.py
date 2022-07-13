@@ -29,13 +29,15 @@ def run(com: Compiler):
                 b = stack.pop()
                 a = stack.pop()
                 stack.append(a // b)
+            case Op.PRINT:
+                print(stack.pop())
+            case Op.POP:
+                stack.pop()
             case _:
                 print(Op(op))
-    if len(stack) > 0:
-        print(stack.pop())
 
 
 if __name__ == '__main__':
-    parser = Parser('1 + 2')
+    parser = Parser('print 1 + 2 * 3')
     compiler = Compiler(parser)
     run(compiler)
