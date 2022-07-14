@@ -47,6 +47,9 @@ class TError(Token):
 
 
 class Keyword(Enum):
+    NOT = "not"
+    AND = "and"
+    OR = "or"
     PRINT = "print"
     IF = "if"
     ELSE = "else"

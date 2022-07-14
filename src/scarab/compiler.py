@@ -17,17 +17,18 @@ class Op(IntEnum):
     MUL = auto()
     DIV = auto()
     NOT = auto()
-    NOT_EQUAL = auto()
     EQUAL = auto()
+    NOT_EQUAL = auto()
     LESS = auto()
-    GREATER = auto()
     LESS_EQUAL = auto()
+    GREATER = auto()
     GREATER_EQUAL = auto()
     SET_GLOBAL = auto()
     GET_GLOBAL = auto()
     SET_LOCAL = auto()
     GET_LOCAL = auto()
     JUMP_IF_FALSE = auto()
+    JUMP = auto()
 
 
 BUILTIN_SYMBOLS = {
@@ -35,12 +36,20 @@ BUILTIN_SYMBOLS = {
     '-': Op.SUB,
     '*': Op.MUL,
     '/': Op.DIV,
+    "==": Op.EQUAL,
+    "!=": Op.NOT_EQUAL,
+    "<": Op.LESS,
+    "<=": Op.LESS_EQUAL,
+    ">": Op.GREATER,
+    ">=": Op.GREATER_EQUAL,
 }
 
 
 class Precedence(IntEnum):
     NONE = auto()
     ASSIGNMENT = auto()  # =
+    OR = auto()  # or
+    AND = auto()  # and
     EQUALITY = auto()  # == !=
     COMPARISON = auto()  # < > <= >=
     TERM = auto()  # + -
@@ -69,12 +78,12 @@ class Precedence(IntEnum):
     @classmethod
     def get(cls, token: Token):
         match token:
-            case TInt():
-                return cls.NONE
-            case TStr():
-                return cls.NONE
-            case TOp(value=op):
+            case TOp(op):
                 return cls.get_op(op)
+            case TKeyword(Keyword.OR):
+                return cls.OR
+            case TKeyword(Keyword.AND):
+                return cls.AND
             case _:
                 return cls.NONE
 
@@ -148,23 +157,6 @@ class Compiler:
         self.locals.append(Local(name, depth))
         return index
 
-    def emit_jump(self, op):
-        self.code.append(op)
-        where = len(self.code)
-        self.code.append(0xff)
-        self.code.append(0xff)
-        return where
-
-    def patch_jump(self, offset):
-        # -2 to adjust for the bytecode for the jump offset itself
-        jump = len(self.code) - 2
-
-        if jump > (2 ** 16 - 1):
-            raise Exception("Too far to jump")
-
-        self.code[offset] = (jump >> 8) & 0xff
-        self.code[offset + 1] = jump & 0xff
-
     def binary(self, op):
         self.parse_precedence(Precedence.get_op(op) + 1)
         if op in BUILTIN_SYMBOLS:
@@ -216,6 +208,9 @@ class Compiler:
                 constant = self.make_constant(String(s))
                 self.code.append(Op.CONSTANT)
                 self.code.append(constant)
+            case TSym("("):
+                self.expression()
+                self.consume(TSym, ")")
             case TIdent(name):
                 if self.match(TSym, ":"):
                     raise NotImplementedError("function calls")
@@ -227,20 +222,31 @@ class Compiler:
                         self.get_local(name)
                     else:
                         self.get_global(name)
-            case TSym("("):
-                self.expression()
-                self.consume(TSym, ")")
-            case TOp(op):
+            case TKeyword(Keyword.NOT):
                 self.parse_precedence(Precedence.UNARY)
-                match op:
-                    case "!":
-                        self.code.append(Op.NOT)
-                    case other:
-                        raise SyntaxError(other)
+                self.code.append(Op.NOT)
+            case TOp(op):
+                # TODO: add unary operators
+                raise SyntaxError(op)
 
         while precedence <= Precedence.get(self.current):
             self.advance()
             match self.previous:
+                case TKeyword(Keyword.AND):
+                    end_jump = self.emit_jump(Op.JUMP_IF_FALSE)
+                    self.code.append(Op.POP)
+
+                    self.parse_precedence(Precedence.AND)
+                    self.patch_jump(end_jump)
+                case TKeyword(Keyword.OR):
+                    else_jump = self.emit_jump(Op.JUMP_IF_FALSE)
+                    end_jump = self.emit_jump(Op.JUMP_IF_FALSE)
+
+                    self.patch_jump(else_jump)
+                    self.code.append(Op.POP)
+
+                    self.parse_precedence(Precedence.OR)
+                    self.patch_jump(end_jump)
                 case TOp(value=op):
                     self.binary(op)
                 case default:
@@ -260,15 +266,42 @@ class Compiler:
         while not self.exhausted and not self.match(t, value):
             self.statement()
 
+    def emit_jump(self, op):
+        self.code.append(op)
+        where = len(self.code)
+        self.code.append(0xff)
+        self.code.append(0xff)
+        return where
+
+    def patch_jump(self, offset):
+        # -2 to adjust for the bytecode for the jump offset itself
+        jump = len(self.code) - offset - 2
+
+        if jump > (2 ** 16 - 1):
+            raise Exception("Too far to jump")
+
+        self.code[offset] = (jump >> 8) & 0xff
+        self.code[offset + 1] = jump & 0xff
+
     def print_statement(self):
         self.expression()
         self.code.append(Op.PRINT)
 
     def if_statement(self):
         self.expression()
-        jump = self.emit_jump(Op.JUMP_IF_FALSE)
+
+        then_jump = self.emit_jump(Op.JUMP_IF_FALSE)
+        self.code.append(Op.POP)
         self.statement()
-        self.patch_jump(jump)
+
+        else_jump = self.emit_jump(Op.JUMP)
+
+        self.patch_jump(then_jump)
+        self.code.append(Op.POP)
+
+        if self.match(TKeyword, Keyword.ELSE):
+            self.statement()
+        self.patch_jump(else_jump)
 
     def block_statement(self):
         self.depth += 1
@@ -304,6 +337,8 @@ class Compiler:
         """Compiles the next statement and returns True if it was pure"""
         if self.match(TKeyword, Keyword.PRINT):
             self.print_statement()
+        elif self.match(TKeyword, Keyword.IF):
+            self.if_statement()
         elif self.match(TSym, "{"):
             self.block_statement()
         elif self.match(TIdent):

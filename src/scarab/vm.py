@@ -24,13 +24,15 @@ FALSE = Bool(False)
 
 
 class VM:
-    def __init__(self, code: bytearray, constants: list[Object], *, trace=False, capture=False):
+    def __init__(self, code: bytearray, constants: list[Object], *, ir=False, trace=False, capture=False):
         self.code = code
         self.constants = constants
         self.ip = -1
         self.stack = list()
         self.table = dict()
-        self.trace_execution = trace
+
+        self.output_ir = ir
+        self.stack_trace = trace
         self.capture_output = capture
         self.captured = list()
 
@@ -62,21 +64,54 @@ class VM:
             raise StackUnderflow
         return self.stack.pop()
 
+    def peek(self, distance=1):
+        return self.stack[-distance]
+
+    def debug_ir(self):
+        offset = 0
+        print("=== code ===")
+        while offset < len(self.code):
+            op = Op(self.code[offset])
+            match op:
+                case Op.CONSTANT:
+                    constant = self.constants[self.code[offset + 1]]
+                    print(f"{str(offset).zfill(3)} {op.name}\t({constant!s})")
+                    offset += 2
+                case Op.GET_GLOBAL | Op.SET_GLOBAL | Op.GET_LOCAL | Op.SET_LOCAL:
+                    constant = self.constants[self.code[offset + 1]]
+                    print(f"{str(offset).zfill(3)} {op.name}\t({constant!s})")
+                    offset += 2
+                case Op.JUMP_IF_FALSE | Op.JUMP:
+                    upper = self.code[offset + 1]
+                    lower = self.code[offset + 2]
+                    operand = (upper << 8) | lower
+                    print(f"{str(offset).zfill(3)} {op.name}\t({operand!s})")
+                    offset += 3
+                case _:
+                    print(f"{str(offset).zfill(3)} {op.name}")
+                    offset += 1
+
     def run(self):
+        if self.output_ir:
+            self.debug_ir()
+            print()
+
         while self.ip < self.end:
             op = self.read_byte()
 
-            if self.trace_execution:
-                print("----------")
-                if len(self.stack) > 0:
-                    for slot in self.stack:
-                        print(f"[ {slot} ]", end="")
-                    print()
-                else:
-                    print("[]")
-                print(Op(op).name)
+            if self.stack_trace:
+                print(Op(op).name, "".join(list(map(lambda x: f"[ {x} ]", self.stack))))
 
             match op:
+                case Op.POP:
+                    self.pop()
+                case Op.JUMP:
+                    offset = self.read_short()
+                    self.ip += offset
+                case Op.JUMP_IF_FALSE:
+                    offset = self.read_short()
+                    if not self.peek():
+                        self.ip += offset
                 case Op.CONSTANT:
                     self.push(self.read_constant())
                 case Op.TRUE:
@@ -88,8 +123,6 @@ class VM:
                         self.captured.append(self.pop())
                     else:
                         print(self.pop())
-                case Op.POP:
-                    self.pop()
                 case Op.ADD:
                     b = self.pop()
                     a = self.pop()
@@ -106,6 +139,30 @@ class VM:
                     b = self.pop()
                     a = self.pop()
                     self.push(a // b)
+                case Op.EQUAL:
+                    b = self.pop()
+                    a = self.pop()
+                    self.push(Bool(a == b))
+                case Op.NOT_EQUAL:
+                    b = self.pop()
+                    a = self.pop()
+                    self.push(Bool(a != b))
+                case Op.LESS:
+                    b = self.pop()
+                    a = self.pop()
+                    self.push(Bool(a < b))
+                case Op.LESS_EQUAL:
+                    b = self.pop()
+                    a = self.pop()
+                    self.push(Bool(a <= b))
+                case Op.GREATER:
+                    b = self.pop()
+                    a = self.pop()
+                    self.push(Bool(a > b))
+                case Op.GREATER_EQUAL:
+                    b = self.pop()
+                    a = self.pop()
+                    self.push(Bool(a >= b))
                 case Op.SET_GLOBAL:
                     name = self.read_constant()
                     self.table[name] = self.pop()

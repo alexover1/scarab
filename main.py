@@ -1,18 +1,12 @@
-from scarab.compiler import Compiler
-from scarab.parser import Parser
-from scarab.vm import VM
+from scarab import Parser, Compiler, VM
 
 if __name__ == '__main__':
     parser = Parser('''
-    a = 100
-    {
-        a = a
-        b = 6
-        print a + b
-    }
+    if 0 or 1 print "True"
+    else print "False"
     ''')
     compiler = Compiler(parser)
     compiler.compile()
 
-    vm = VM(compiler.code, compiler.constants)
+    vm = VM(compiler.code, compiler.constants, ir=True, trace=True)
     vm.run()
