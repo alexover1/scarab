@@ -1,10 +1,10 @@
 import pytest
 
-from scarab import Parser, Compiler, VM, Int, String, Bool
+from scarab import Lexer, Compiler, VM, Int, String, Bool
 
 
 def test_add():
-    compiler = Compiler(Parser("print 1 + 2"))
+    compiler = Compiler(Lexer("print 1 + 2"))
     compiler.compile()
     vm = VM(compiler.code, compiler.constants, capture=True)
     vm.run()
@@ -12,7 +12,7 @@ def test_add():
 
 
 def test_order_operations():
-    compiler = Compiler(Parser("print 1 + 2 * 3"))
+    compiler = Compiler(Lexer("print 1 + 2 * 3"))
     compiler.compile()
     vm = VM(compiler.code, compiler.constants, capture=True)
     vm.run()
@@ -20,7 +20,7 @@ def test_order_operations():
 
 
 def test_grouping():
-    compiler = Compiler(Parser("print (1 + 2) * 3"))
+    compiler = Compiler(Lexer("print (1 + 2) * 3"))
     compiler.compile()
     vm = VM(compiler.code, compiler.constants, capture=True)
     vm.run()
@@ -28,7 +28,7 @@ def test_grouping():
 
 
 def test_global_variables():
-    compiler = Compiler(Parser('''
+    compiler = Compiler(Lexer('''
     breakfast := "eggs"
     beverage := "coffee"
     breakfast = "eggs with " + beverage
@@ -42,7 +42,7 @@ def test_global_variables():
 
 
 def test_local_variables():
-    compiler = Compiler(Parser('''
+    compiler = Compiler(Lexer('''
     x := 5
     do
       x := x * x
@@ -59,7 +59,7 @@ def test_local_variables():
 
 def test_out_of_scope():
     with pytest.raises(NameError):
-        compiler = Compiler(Parser('''
+        compiler = Compiler(Lexer('''
         do
           a := 10
         end
@@ -72,7 +72,7 @@ def test_out_of_scope():
 
 def test_unknown_local():
     with pytest.raises(NameError):
-        compiler = Compiler(Parser('''
+        compiler = Compiler(Lexer('''
         do print x end
         '''))
         compiler.compile()
@@ -89,7 +89,7 @@ def test_unknown_local():
     'print 6 >= 5',
 ])
 def test_truthy(test_input):
-    compiler = Compiler(Parser(test_input))
+    compiler = Compiler(Lexer(test_input))
     compiler.compile()
     vm = VM(compiler.code, compiler.constants, capture=True)
     vm.run()
@@ -97,7 +97,7 @@ def test_truthy(test_input):
 
 
 def test_if_else():
-    compiler = Compiler(Parser('''
+    compiler = Compiler(Lexer('''
     if 1 print "Yes"
     else print "No"
     '''))
@@ -123,7 +123,7 @@ def test_if_else():
     ('print "yes" and ""', String("")),
 ])
 def test_and_or(test_input, expected):
-    compiler = Compiler(Parser(test_input))
+    compiler = Compiler(Lexer(test_input))
     compiler.compile()
     vm = VM(compiler.code, compiler.constants, capture=True)
     vm.run()
@@ -131,7 +131,7 @@ def test_and_or(test_input, expected):
 
 
 def test_multi_declare():
-    compiler = Compiler(Parser('''
+    compiler = Compiler(Lexer('''
     x := y := 5
     print x
     print y
@@ -144,7 +144,7 @@ def test_multi_declare():
 
 
 def test_multi_assign():
-    compiler = Compiler(Parser('''
+    compiler = Compiler(Lexer('''
     x := y := 5
     x = y = 100
     print x
@@ -158,7 +158,7 @@ def test_multi_assign():
 
 
 def test_multi_declare_local():
-    compiler = Compiler(Parser('''
+    compiler = Compiler(Lexer('''
     do
       x := y := 2
       x = y = x + 1
@@ -174,7 +174,7 @@ def test_multi_declare_local():
 
 
 def test_while_loop():
-    compiler = Compiler(Parser('''
+    compiler = Compiler(Lexer('''
     x := 0
     while x < 10 do
         print x

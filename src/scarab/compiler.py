@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from enum import IntEnum, auto
 from typing import TypeVar, Type
 
-from .parser import Token, TInt, TStr, TError, TKeyword, Keyword, TIdent, TOp, TSym
+from .lexer import Token, TInt, TStr, TError, TKeyword, Keyword, TIdent, TOp, TSym
 from .value import Int, String
 
 

@@ -84,7 +84,7 @@ class PeekIterator:
         return self.peeked[ahead]
 
 
-class Parser:
+class Lexer:
     """Takes in a string and returns a list of tokens"""
 
     operator_characters = "!@#$%^&*-+?_=<>/:"

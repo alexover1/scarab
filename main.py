@@ -1,11 +1,12 @@
-from scarab import Parser, Compiler, VM
+from scarab import Lexer, Compiler, VM
 
 if __name__ == '__main__':
-    parser = Parser('''
+    lexer = Lexer('''
     if 0 or 1 print "True"
     else print "False"
     ''')
-    compiler = Compiler(parser)
+
+    compiler = Compiler(lexer)
     compiler.compile()
 
     vm = VM(compiler.code, compiler.constants, ir=True, trace=True)
