@@ -65,3 +65,26 @@ def test_if_else():
     vm = VM(compiler.code, compiler.constants, capture=True)
     vm.run()
     assert vm.captured[0] == String("Yes")
+
+
+@pytest.mark.parametrize('test_input,expected', [
+    ('print 1 and 1', Int(1)),
+    ('print 1 and 0', Int(0)),
+    ('print 0 and 1', Int(0)),
+    ('print 0 and 0', Int(0)),
+    ('print 1 or 1', Int(1)),
+    ('print 1 or 0', Int(1)),
+    ('print 0 or 1', Int(1)),
+    ('print 0 or 0', Int(0)),
+    ('print "yes" and "no"', String("no")),
+    ('print "yes" or "no"', String("yes")),
+    ('print "" or "no"', String("no")),
+    ('print "yes" or ""', String("yes")),
+    ('print "yes" and ""', String("")),
+])
+def test_and_or(test_input, expected):
+    compiler = Compiler(Parser(test_input))
+    compiler.compile()
+    vm = VM(compiler.code, compiler.constants, capture=True)
+    vm.run()
+    assert vm.captured[0] == expected

@@ -240,7 +240,7 @@ class Compiler:
                     self.patch_jump(end_jump)
                 case TKeyword(Keyword.OR):
                     else_jump = self.emit_jump(Op.JUMP_IF_FALSE)
-                    end_jump = self.emit_jump(Op.JUMP_IF_FALSE)
+                    end_jump = self.emit_jump(Op.JUMP)
 
                     self.patch_jump(else_jump)
                     self.code.append(Op.POP)

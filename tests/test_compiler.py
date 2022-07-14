@@ -31,6 +31,18 @@ def test_expression():
     ])
 
 
+@pytest.mark.parametrize("test_input", [
+    "*",
+    "+ 3",
+    "10 -"
+    "1 + * 2",
+    "50 + -",
+])
+def test_invalid_expression(test_input):
+    with pytest.raises(SyntaxError):
+        iter(Compiler(Parser(test_input)))
+
+
 def test_scope():
     compiler = Compiler(Parser('''
     a = 100
@@ -66,13 +78,3 @@ def test_scope():
 def test_compiles(test_input):
     compiler = Compiler(Parser(test_input))
     compiler.compile()
-
-
-@pytest.mark.parametrize("test_input", [
-    "1 + - 2",
-    "* 3",
-    "50 + -",
-])
-def test_syntax_error(test_input):
-    with pytest.raises(SyntaxError):
-        iter(Compiler(Parser(test_input)))
