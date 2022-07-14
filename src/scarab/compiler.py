@@ -27,6 +27,7 @@ class Op(IntEnum):
     GET_GLOBAL = auto()
     SET_LOCAL = auto()
     GET_LOCAL = auto()
+    JUMP_IF_FALSE = auto()
 
 
 BUILTIN_SYMBOLS = {
@@ -147,6 +148,23 @@ class Compiler:
         self.locals.append(Local(name, depth))
         return index
 
+    def emit_jump(self, op):
+        self.code.append(op)
+        where = len(self.code)
+        self.code.append(0xff)
+        self.code.append(0xff)
+        return where
+
+    def patch_jump(self, offset):
+        # -2 to adjust for the bytecode for the jump offset itself
+        jump = len(self.code) - 2
+
+        if jump > (2 ** 16 - 1):
+            raise Exception("Too far to jump")
+
+        self.code[offset] = (jump >> 8) & 0xff
+        self.code[offset + 1] = jump & 0xff
+
     def binary(self, op):
         self.parse_precedence(Precedence.get_op(op) + 1)
         if op in BUILTIN_SYMBOLS:
@@ -245,6 +263,12 @@ class Compiler:
     def print_statement(self):
         self.expression()
         self.code.append(Op.PRINT)
+
+    def if_statement(self):
+        self.expression()
+        jump = self.emit_jump(Op.JUMP_IF_FALSE)
+        self.statement()
+        self.patch_jump(jump)
 
     def block_statement(self):
         self.depth += 1

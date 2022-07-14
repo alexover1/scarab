@@ -7,3 +7,4 @@ __version__ = "0.1"
 from .compiler import *
 from .parser import *
 from .value import *
+from .vm import *

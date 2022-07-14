@@ -6,38 +6,38 @@ from typing import Callable
 
 @dataclass(frozen=True)
 class Token:
-    __match_args__ = ('text',)
+    __match_args__ = ("text",)
     text: str
     line: int
 
 
 @dataclass(frozen=True)
 class TInt(Token):
-    __match_args__ = ('value',)
+    __match_args__ = ("value",)
     value: int
 
 
 @dataclass(frozen=True)
 class TStr(Token):
-    __match_args__ = ('value',)
+    __match_args__ = ("value",)
     value: str
 
 
 @dataclass(frozen=True)
 class TIdent(Token):
-    __match_args__ = ('value',)
+    __match_args__ = ("value",)
     value: str
 
 
 @dataclass(frozen=True)
 class TSym(Token):
-    __match_args__ = ('value',)
+    __match_args__ = ("value",)
     value: str
 
 
 @dataclass(frozen=True)
 class TOp(Token):
-    __match_args__ = ('value',)
+    __match_args__ = ("value",)
     value: str
 
 
@@ -47,12 +47,16 @@ class TError(Token):
 
 
 class Keyword(Enum):
-    PRINT = 'print'
+    PRINT = "print"
+    IF = "if"
+    ELSE = "else"
+    DO = "do"
+    END = "auto"
 
 
 @dataclass(frozen=True)
 class TKeyword(Token):
-    __match_args__ = ('value',)
+    __match_args__ = ("value",)
     value: Keyword
 
 
