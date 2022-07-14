@@ -72,17 +72,26 @@ def run(com: Compiler):
                 else:
                     raise NameError(name)
                 debug(op, name)
+            case Op.SET_LOCAL:
+                slot = next(ops)
+                stack[slot] = stack[-1]
+                debug(op, slot)
+            case Op.GET_LOCAL:
+                slot = next(ops)
+                stack.append(stack[slot])
+                debug(op, slot)
             case _:
                 raise RuntimeError(f"Unknown op code: {op}")
 
 
 if __name__ == '__main__':
     parser = Parser('''
-    meal = "eggs"
-    beverage = "coffee"
-    breakfast = meal + " with " + beverage
-    
-    print breakfast
+    a = 100
+    {
+        a = a
+        b = 6
+        print a + b
+    }
     ''')
     compiler = Compiler(parser)
     run(compiler)

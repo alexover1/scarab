@@ -31,6 +31,32 @@ def test_expression():
     ])
 
 
+def test_scope():
+    compiler = Compiler(Parser('''
+    a = 100
+    {
+        a = a
+        b = 6
+        print a + b
+    }
+    '''))
+    compiler.compile()
+    assert compiler.code == bytearray([
+        Op.CONSTANT, 0,
+        Op.SET_GLOBAL, 1,
+        Op.GET_GLOBAL, 2,
+        Op.SET_LOCAL, 0,
+        Op.CONSTANT, 3,
+        Op.SET_LOCAL, 1,
+        Op.GET_LOCAL, 0,
+        Op.GET_LOCAL, 1,
+        Op.ADD,
+        Op.PRINT,
+        Op.POP,
+        Op.POP,
+    ])
+
+
 @pytest.mark.parametrize("test_input", [
     "1 + 2 * 3",
     "(1 + 2) * 3",

@@ -79,7 +79,7 @@ class Parser:
     """Takes in a string and returns a list of tokens"""
 
     operator_characters = "!@#$%^&*-+?_=<>/"
-    special_characters = ".,:()"
+    special_characters = ".,:(){}"
 
     def __init__(self, source: str):
         self.source = source
