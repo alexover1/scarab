@@ -1,3 +1,5 @@
+from typing import TypeVar
+
 from scarab.compiler import Op
 from scarab.value import Object, Nil, Bool
 
@@ -18,6 +20,56 @@ class UnknownOpCode(RuntimeError):
     pass
 
 
+T = TypeVar('T')
+
+
+class Stack:
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.items: list[T] = [None] * capacity
+        self.top = -1
+
+    def __getitem__(self, item):
+        if item > self.capacity or self.items[item] is None:
+            raise IndexError(item)
+        return self.items[item]
+
+    def __setitem__(self, index, value):
+        if index > self.capacity:
+            raise IndexError(index)
+
+        if index > self.top:
+            self.top = index
+
+        self.items[index] = value
+
+    @property
+    def empty(self):
+        return self.top < 0
+
+    def push(self, value):
+        self.top += 1
+
+        if self.top >= self.capacity:
+            raise StackOverflow
+
+        self[self.top] = value
+
+    def pop(self):
+        if self.empty:
+            raise StackUnderflow
+        result = self[self.top]
+        self[self.top] = None
+        self.top -= 1
+        return result
+
+    def peek(self, distance=0):
+        index = self.top - distance
+        if index < 0:
+            raise IndexError(index)
+        return self.items[index]
+
+
 NIL = Nil()
 TRUE = Bool(True)
 FALSE = Bool(False)
@@ -28,7 +80,7 @@ class VM:
         self.code = code
         self.constants = constants
         self.ip = -1
-        self.stack = list()
+        self.stack = Stack(256)
         self.table = dict()
 
         self.output_ir = ir
@@ -56,17 +108,6 @@ class VM:
         lower = self.read_byte()
         return (upper << 8) | lower
 
-    def push(self, value: Object):
-        self.stack.append(value)
-
-    def pop(self):
-        if len(self.stack) < 1:
-            raise StackUnderflow
-        return self.stack.pop()
-
-    def peek(self, distance=1):
-        return self.stack[-distance]
-
     def debug_ir(self):
         offset = 0
         print("=== code ===")
@@ -77,11 +118,15 @@ class VM:
                     constant = self.constants[self.code[offset + 1]]
                     print(f"{str(offset).zfill(3)} {op.name}\t({constant!s})")
                     offset += 2
-                case Op.GET_GLOBAL | Op.SET_GLOBAL | Op.GET_LOCAL | Op.SET_LOCAL:
+                case Op.DEFINE_GLOBAL | Op.GET_GLOBAL | Op.SET_GLOBAL:
                     constant = self.constants[self.code[offset + 1]]
                     print(f"{str(offset).zfill(3)} {op.name}\t({constant!s})")
                     offset += 2
-                case Op.JUMP_IF_FALSE | Op.JUMP:
+                case Op.GET_LOCAL | Op.SET_LOCAL:
+                    local = self.code[offset + 1]
+                    print(f"{str(offset).zfill(3)} {op.name}\t({local})")
+                    offset += 2
+                case Op.JUMP_IF_FALSE | Op.JUMP | Op.LOOP:
                     upper = self.code[offset + 1]
                     lower = self.code[offset + 2]
                     operand = (upper << 8) | lower
@@ -90,6 +135,12 @@ class VM:
                 case _:
                     print(f"{str(offset).zfill(3)} {op.name}")
                     offset += 1
+
+    def print(self, value):
+        if self.capture_output:
+            self.captured.append(value)
+        else:
+            print(value)
 
     def run(self):
         if self.output_ir:
@@ -104,79 +155,84 @@ class VM:
 
             match op:
                 case Op.POP:
-                    self.pop()
+                    self.stack.pop()
                 case Op.JUMP:
                     offset = self.read_short()
                     self.ip += offset
                 case Op.JUMP_IF_FALSE:
                     offset = self.read_short()
-                    if not self.peek():
+                    if not self.stack.peek():
                         self.ip += offset
+                case Op.LOOP:
+                    offset = self.read_short()
+                    self.ip -= offset
                 case Op.CONSTANT:
-                    self.push(self.read_constant())
+                    self.stack.push(self.read_constant())
                 case Op.TRUE:
-                    self.push(TRUE)
+                    self.stack.push(TRUE)
                 case Op.FALSE:
-                    self.push(FALSE)
+                    self.stack.push(FALSE)
                 case Op.PRINT:
-                    if self.capture_output:
-                        self.captured.append(self.pop())
-                    else:
-                        print(self.pop())
+                    self.print(self.stack.pop())
                 case Op.ADD:
-                    b = self.pop()
-                    a = self.pop()
-                    self.push(a + b)
+                    b = self.stack.pop()
+                    a = self.stack.pop()
+                    self.stack.push(a + b)
                 case Op.SUB:
-                    b = self.pop()
-                    a = self.pop()
-                    self.push(a - b)
+                    b = self.stack.pop()
+                    a = self.stack.pop()
+                    self.stack.push(a - b)
                 case Op.MUL:
-                    b = self.pop()
-                    a = self.pop()
-                    self.push(a * b)
+                    b = self.stack.pop()
+                    a = self.stack.pop()
+                    self.stack.push(a * b)
                 case Op.DIV:
-                    b = self.pop()
-                    a = self.pop()
-                    self.push(a // b)
+                    b = self.stack.pop()
+                    a = self.stack.pop()
+                    self.stack.push(a / b)
                 case Op.EQUAL:
-                    b = self.pop()
-                    a = self.pop()
-                    self.push(Bool(a == b))
+                    b = self.stack.pop()
+                    a = self.stack.pop()
+                    self.stack.push(Bool(a == b))
                 case Op.NOT_EQUAL:
-                    b = self.pop()
-                    a = self.pop()
-                    self.push(Bool(a != b))
+                    b = self.stack.pop()
+                    a = self.stack.pop()
+                    self.stack.push(Bool(a != b))
                 case Op.LESS:
-                    b = self.pop()
-                    a = self.pop()
-                    self.push(Bool(a < b))
+                    b = self.stack.pop()
+                    a = self.stack.pop()
+                    self.stack.push(Bool(a < b))
                 case Op.LESS_EQUAL:
-                    b = self.pop()
-                    a = self.pop()
-                    self.push(Bool(a <= b))
+                    b = self.stack.pop()
+                    a = self.stack.pop()
+                    self.stack.push(Bool(a <= b))
                 case Op.GREATER:
-                    b = self.pop()
-                    a = self.pop()
-                    self.push(Bool(a > b))
+                    b = self.stack.pop()
+                    a = self.stack.pop()
+                    self.stack.push(Bool(a > b))
                 case Op.GREATER_EQUAL:
-                    b = self.pop()
-                    a = self.pop()
-                    self.push(Bool(a >= b))
+                    b = self.stack.pop()
+                    a = self.stack.pop()
+                    self.stack.push(Bool(a >= b))
+                case Op.DEFINE_GLOBAL:
+                    name = self.read_constant()
+                    self.table[name] = self.stack.peek()
                 case Op.SET_GLOBAL:
                     name = self.read_constant()
-                    self.table[name] = self.pop()
+                    if name not in self.table:
+                        raise NameError(name)
+                    self.table[name] = self.stack.peek()
                 case Op.GET_GLOBAL:
                     name = self.read_constant()
                     if name in self.table:
-                        self.push(self.table[name])
+                        self.stack.push(self.table[name])
                     else:
                         raise NameError(name)
                 case Op.SET_LOCAL:
                     slot = self.read_byte()
-                    self.stack[slot] = self.stack[-1]
+                    self.stack[slot] = self.stack.peek()
                 case Op.GET_LOCAL:
                     slot = self.read_byte()
-                    self.push(self.stack[slot])
+                    self.stack.push(self.stack[slot])
                 case _:
                     raise UnknownOpCode(op)

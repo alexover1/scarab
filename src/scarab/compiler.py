@@ -23,12 +23,14 @@ class Op(IntEnum):
     LESS_EQUAL = auto()
     GREATER = auto()
     GREATER_EQUAL = auto()
+    DEFINE_GLOBAL = auto()
     SET_GLOBAL = auto()
     GET_GLOBAL = auto()
     SET_LOCAL = auto()
     GET_LOCAL = auto()
     JUMP_IF_FALSE = auto()
     JUMP = auto()
+    LOOP = auto()
 
 
 BUILTIN_SYMBOLS = {
@@ -107,6 +109,8 @@ class Compiler:
         self.exhausted = False
         self.code = bytearray()
         self.constants = list()
+        self.can_assign = True
+        self.skip_pop = False
 
         # Local variables & Scoping
         self.locals: list[Local] = list()
@@ -147,6 +151,9 @@ class Compiler:
     def in_local_scope(self):
         return self.depth > 0
 
+    def emit_bytes(self, *b):
+        self.code += b
+
     def make_constant(self, constant):
         index = len(self.constants)
         self.constants.append(constant)
@@ -164,37 +171,58 @@ class Compiler:
             return
         raise SyntaxError(op)
 
-    def set_global(self, name):
-        constant = self.make_constant(String(name))
-        self.code.append(Op.SET_GLOBAL)
-        self.code.append(constant)
-
-    def set_local(self, name):
-        for i, local in reversed(list(enumerate(self.locals))):
-            if local.depth < self.depth:
-                break
-            if name == local.name:
-                # Reassigning variables
-                self.code.append(Op.SET_LOCAL)
-                self.code.append(i)
-                return
-        index = self.make_local(name, self.depth)
-        self.code.append(Op.SET_LOCAL)
-        self.code.append(index)
-
-    def get_global(self, name):
-        constant = self.make_constant(String(name))
-        self.code.append(Op.GET_GLOBAL)
-        self.code.append(constant)
-
-    def get_local(self, name):
+    def local(self, name):
         for i, local in reversed(list(enumerate(self.locals))):
             if name == local.name:
-                self.code.append(Op.GET_LOCAL)
-                self.code.append(i)
-                break
+                return i
+        return None
+
+    def declaration(self, name):
+        if self.in_local_scope:
+            self.assignment_deferred(Op.SET_LOCAL, self.make_local, name, self.depth)
+            self.skip_pop = True
+            return
+
+        self.assignment_deferred(Op.DEFINE_GLOBAL, self.make_constant, String(name))
+
+    def assignment(self, op, arg):
+        self.expression()
+        self.code.append(op)
+        self.code.append(arg)
+
+    def assignment_deferred(self, op, deferred, *args):
+        self.expression()
+        arg = deferred(*args)
+        self.code.append(op)
+        self.code.append(arg)
+
+    def variable(self, name):
+        if self.can_assign and self.match(TOp, ":="):
+            self.declaration(name)
+            return
+
+        idx_of_local = self.local(name)
+
+        if self.can_assign and self.match(TOp, "="):
+            if idx_of_local is not None:
+                return self.assignment(Op.SET_LOCAL, idx_of_local)
+            idx_of_global = self.make_constant(String(name))
+            self.assignment(Op.SET_GLOBAL, idx_of_global)
         else:
-            self.get_global(name)
+            if idx_of_local is not None:
+                self.code.append(Op.GET_LOCAL)
+                self.code.append(idx_of_local)
+                return
+            idx_of_global = self.make_constant(String(name))
+            self.code.append(Op.GET_GLOBAL)
+            self.code.append(idx_of_global)
+
+    def call_arguments(self):
+        arity = 0
+        while self.match(TSym, ","):
+            self.expression()
+            arity += 1
+        return arity
 
     def parse_precedence(self, precedence: int):
         self.advance()
@@ -212,22 +240,21 @@ class Compiler:
                 self.expression()
                 self.consume(TSym, ")")
             case TIdent(name):
-                if self.match(TSym, ":"):
+                if self.match(TOp, "!"):
                     raise NotImplementedError("function calls")
                     # self.expression()
                     # arity = self.call_arguments() + 1
                     # self.code.append(Op.CALL)
                 else:
-                    if self.in_local_scope:
-                        self.get_local(name)
-                    else:
-                        self.get_global(name)
+                    self.variable(name)
             case TKeyword(Keyword.NOT):
                 self.parse_precedence(Precedence.UNARY)
                 self.code.append(Op.NOT)
             case TOp(op):
                 # TODO: add unary operators
                 raise SyntaxError(op)
+
+        self.can_assign = precedence <= Precedence.ASSIGNMENT
 
         while precedence <= Precedence.get(self.current):
             self.advance()
@@ -255,17 +282,6 @@ class Compiler:
     def expression(self):
         self.parse_precedence(Precedence.ASSIGNMENT)
 
-    def call_arguments(self):
-        arity = 0
-        while self.match(TSym, ","):
-            self.expression()
-            arity += 1
-        return arity
-
-    def block(self, t: Type[T], value):
-        while not self.exhausted and not self.match(t, value):
-            self.statement()
-
     def emit_jump(self, op):
         self.code.append(op)
         where = len(self.code)
@@ -282,6 +298,17 @@ class Compiler:
 
         self.code[offset] = (jump >> 8) & 0xff
         self.code[offset + 1] = jump & 0xff
+
+    def emit_loop(self, loop_start):
+        self.code.append(Op.LOOP)
+
+        # +2 to adjust for the size of Op.LOOP and its operand
+        offset = len(self.code) - loop_start + 2
+        if offset > (2 ** 16 - 1):
+            raise Exception("loop body too large")
+
+        self.code.append((offset >> 8) & 0xff)
+        self.code.append(offset & 0xff)
 
     def print_statement(self):
         self.expression()
@@ -303,9 +330,23 @@ class Compiler:
             self.statement()
         self.patch_jump(else_jump)
 
+    def while_statement(self):
+        loop_start = len(self.code)
+
+        self.expression()
+
+        exit_jump = self.emit_jump(Op.JUMP_IF_FALSE)
+        self.code.append(Op.POP)
+        self.statement()
+        self.emit_loop(loop_start)
+
+        self.patch_jump(exit_jump)
+        self.code.append(Op.POP)
+
     def block_statement(self):
         self.depth += 1
-        self.block(TSym, "}")
+        while not self.exhausted and not self.match(TKeyword, Keyword.END):
+            self.statement()
         self.depth -= 1
 
         while len(self.locals) > 0 and self.locals[-1].depth > self.depth:
@@ -313,25 +354,12 @@ class Compiler:
             self.code.append(Op.POP)
             self.locals.pop()
 
-    def assignment_statement(self, name):
-        if self.in_local_scope:
-            self.set_local(name)
-        else:
-            self.set_global(name)
-
     def expression_statement(self):
+        self.skip_pop = False
         self.expression()
-        self.code.append(Op.POP)
 
-    def declaration(self):
-        name = self.previous.value
-        if self.match(TOp, "="):
-            self.expression()
-            self.assignment_statement(name)
-        elif self.match(TIdent):
-            raise NotImplementedError("function definitions")
-        else:
-            raise SyntaxError("expect `=` or arguments after identifier")
+        if not self.skip_pop:
+            self.code.append(Op.POP)
 
     def statement(self) -> bool:
         """Compiles the next statement and returns True if it was pure"""
@@ -339,10 +367,10 @@ class Compiler:
             self.print_statement()
         elif self.match(TKeyword, Keyword.IF):
             self.if_statement()
-        elif self.match(TSym, "{"):
+        elif self.match(TKeyword, Keyword.WHILE):
+            self.while_statement()
+        elif self.match(TKeyword, Keyword.DO):
             self.block_statement()
-        elif self.match(TIdent):
-            self.declaration()
         else:
             self.expression_statement()
             return True

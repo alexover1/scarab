@@ -45,17 +45,18 @@ def test_invalid_expression(test_input):
 
 def test_scope():
     compiler = Compiler(Parser('''
-    a = 100
-    {
-        a = a
-        b = 6
-        print a + b
-    }
+    a := 100
+    do
+      a := a
+      b := 6
+      print a + b
+    end
     '''))
     compiler.compile()
     assert compiler.code == bytearray([
         Op.CONSTANT, 0,
-        Op.SET_GLOBAL, 1,
+        Op.DEFINE_GLOBAL, 1,
+        Op.POP,
         Op.GET_GLOBAL, 2,
         Op.SET_LOCAL, 0,
         Op.CONSTANT, 3,

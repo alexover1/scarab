@@ -47,14 +47,16 @@ class TError(Token):
 
 
 class Keyword(Enum):
+    PRINT = "print"
     NOT = "not"
     AND = "and"
     OR = "or"
-    PRINT = "print"
+    DO = "do"
+    END = "end"
     IF = "if"
     ELSE = "else"
-    DO = "do"
-    END = "auto"
+    WHILE = "while"
+    FOR = "for"
 
 
 @dataclass(frozen=True)
@@ -85,8 +87,8 @@ class PeekIterator:
 class Parser:
     """Takes in a string and returns a list of tokens"""
 
-    operator_characters = "!@#$%^&*-+?_=<>/"
-    special_characters = ".,:(){}"
+    operator_characters = "!@#$%^&*-+?_=<>/:"
+    special_characters = ".,(){}"
 
     def __init__(self, source: str):
         self.source = source
